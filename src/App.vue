@@ -1,13 +1,14 @@
 <template>
     <div>
         <div>
-            <canvas id="the-canvas" style="border: 1px solid orange; direction: ltr"></canvas>
-        </div>
-        <div>
             <button id="prev" type="button" @click="onPrevPage">Previous</button>
             <button id="next" type="button" @click="onNextPage">Next</button>
         </div>
         <div>Page: {{ pageNum }} of {{ pageCount }}</div>
+        <div id="pdf-container">
+            <canvas id="the-canvas" style="direction: ltr"></canvas>
+            <div id="text-layer" class="textLayer"></div>
+        </div>
     </div>
 </template>
 
@@ -20,7 +21,9 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker.default
 
 const url =
-    'https://un-encrypt-resources.oss-cn-shenzhen.aliyuncs.com/met_new/course/english/reading/20449/20449.pdf?'
+    // 'https://un-encrypt-resources.oss-cn-shenzhen.aliyuncs.com/met_new/course/english/reading/20449/20449.pdf'
+    // 'https://un-encrypt-resources.oss-cn-shenzhen.aliyuncs.com/met_new/course/english/reading/20425/20425.pdf'
+    'https://un-encrypt-resources.oss-cn-shenzhen.aliyuncs.com/met_new/course/english/reading/20435/20435.pdf'
 
 let pdfDoc = null
 
@@ -28,7 +31,7 @@ const pageCount = ref(0)
 const pageNum = ref(1)
 const pageRendering = ref(null)
 const pageNumPending = ref(null)
-const scale = ref(1)
+const scale = ref(3)
 
 let canvas = null
 let ctx = null
@@ -42,10 +45,22 @@ async function renderPage(num) {
     // Support HiDPI-screens
     const outputScale = window.devicePixelRatio || 1
 
+    // canvas.height = Math.floor(viewport.height * outputScale)
+    // canvas.width = Math.floor(viewport.width * outputScale)
     canvas.height = Math.floor(viewport.height * outputScale)
     canvas.width = Math.floor(viewport.width * outputScale)
+    // ctx.scale(outputScale, outputScale);
     canvas.style.height = Math.floor(viewport.height) + 'px'
     canvas.style.width = Math.floor(viewport.width) + 'px'
+    // canvas.style.height = Math.floor(567 * viewport.height / viewport.width) + 'px'
+    // canvas.style.width = Math.floor(567) + 'px'
+
+    // 同步容器大小
+    const pdfContainer = document.getElementById('pdf-container')
+    pdfContainer.style.height = Math.floor(567 * viewport.height / viewport.width) + 'px'
+    pdfContainer.style.width = Math.floor(567) + 'px'
+
+    console.log(outputScale)
 
     const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null
 
@@ -62,9 +77,27 @@ async function renderPage(num) {
         pageRendering.value = false
         if (pageNumPending.value !== null) {
             // New page rendering is pending
-            renderPage(pageNumPending)
+            renderPage(pageNumPending.value)
             pageNumPending.value = null
         }
+        return page.getTextContent()
+    }).then((textContent) => {
+        console.log('textContent', textContent)
+        // Render text layer
+        const textLayerDiv = document.getElementById('text-layer')
+        textLayerDiv.style.height = Math.floor(viewport.height) + 'px'
+        textLayerDiv.style.width = Math.floor(viewport.width) + 'px'
+        // textLayerDiv.style.height = Math.floor(567 * viewport.height / viewport.width) + 'px'
+        // textLayerDiv.style.width = Math.floor(567) + 'px'
+        textLayerDiv.style.setProperty('--scale-factor', scale.value);
+
+        pdfjsLib.renderTextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport: viewport,
+            textDivs: [],
+            enhanceTextSelection: true
+        })
     })
 }
 
@@ -109,4 +142,21 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped></style>
+<style scoped>
+#pdf-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+canvas {
+    display: block;
+}
+.textLayer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* pointer-events: none; */
+}
+</style>
